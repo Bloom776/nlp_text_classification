@@ -5,6 +5,12 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    f1_score
+)
 import joblib
 
 
@@ -74,8 +80,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
-
-
 print("Train size:", X_train.shape[0])
 print("Test size:", X_test.shape[0])
 
@@ -84,8 +88,8 @@ print("Test size:", X_test.shape[0])
 # 8. TF-IDF Vectorization
 # ==============================
 tfidf = TfidfVectorizer(
-    ngram_range=(1, 1),     # unigrams only (baseline)
-    min_df=5,               # ignore very rare words
+    ngram_range=(1, 2),     # unigrams + bigrams
+    min_df=2,               # ignore very rare words
     max_df=0.9,             # ignore overly common words
     stop_words="english"
 )
@@ -98,7 +102,46 @@ print("TF-IDF test shape:", X_test_tfidf.shape)
 
 
 # ==============================
-# 9. Sanity checks
+# 9. Train baseline model
+# ==============================
+log_reg = LogisticRegression(
+    solver="liblinear",
+    max_iter=1000,
+    class_weight="balanced",
+    random_state=42
+)
+
+log_reg.fit(X_train_tfidf, y_train)
+
+print("Model training completed ✅")
+
+# ==============================
+# 10. Evaluate model
+# ==============================
+
+y_pred = log_reg.predict(X_test_tfidf)
+
+# Classification report
+print("\nClassification Report:")
+print(
+    classification_report(
+        y_test,
+        y_pred,
+        target_names=label_encoder.classes_
+    )
+)
+
+# Macro F1
+macro_f1 = f1_score(y_test, y_pred, average="macro")
+print("Macro F1 score:", round(macro_f1, 4))
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+print("\nConfusion Matrix:")
+print(cm)
+
+# ==============================
+# 11. Sanity checks
 # ==============================
 assert X_train_tfidf.shape[0] == y_train.shape[0]
 assert X_test_tfidf.shape[0] == y_test.shape[0]
@@ -107,7 +150,7 @@ print("Sanity checks passed ✅")
 
 
 # ==============================
-# 10. Save artifacts
+# 12. Save artifacts
 # ==============================
 joblib.dump(tfidf, "tfidf_vectorizer.joblib")
 joblib.dump(label_encoder, "label_encoder.joblib")
