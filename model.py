@@ -82,6 +82,14 @@ X_train, X_test, y_train, y_test = train_test_split(
 print("Train size:", X_train.shape[0])
 print("Test size:", X_test.shape[0])
 
+# ==============================
+# Urgency flags (used for weighting)
+# ==============================
+train_df = df.loc[X_train.index].copy()
+test_df = df.loc[X_test.index].copy()
+
+train_df["urgency_flag"] = (train_df["urgency"].str.lower() == "high").astype(int)
+test_df["urgency_flag"] = (test_df["urgency"].str.lower() == "high").astype(int)
 
 # ==============================
 # 8. TF-IDF Vectorization
@@ -99,18 +107,47 @@ X_test_tfidf = tfidf.transform(X_test)
 print("TF-IDF train shape:", X_train_tfidf.shape)
 print("TF-IDF test shape:", X_test_tfidf.shape)
 
+# ==============================
+# Intent-aware feature engineering
+# ==============================
+INTENT_KEYWORDS = [
+    "hacked", "fraud", "scam", "stolen",
+    "blocked", "locked", "cannot access",
+    "unauthorized", "missing", "reversed",
+    "chargeback", "suspended"
+]
+
+def intent_feature(text):
+    text = text.lower()
+    return sum(1 for kw in INTENT_KEYWORDS if kw in text)
+
+train_intent = X_train.apply(intent_feature).values.reshape(-1, 1)
+test_intent = X_test.apply(intent_feature).values.reshape(-1, 1)
+from scipy.sparse import hstack
+
+X_train_final = hstack([X_train_tfidf, train_intent])
+X_test_final = hstack([X_test_tfidf, test_intent])
 
 # ==============================
-# 9. Train baseline model
+# Urgency-weighted model training
 # ==============================
+sample_weights = train_df["urgency_flag"].apply(
+    lambda x: 3 if x == 1 else 1
+)
+
 log_reg = LogisticRegression(
-    solver="liblinear",
-    max_iter=1000,
+    solver="lbfgs",
+    max_iter=2000,
+    multi_class="multinomial",
     class_weight="balanced",
     random_state=42
 )
 
-log_reg.fit(X_train_tfidf, y_train)
+log_reg.fit(
+    X_train_final,
+    y_train,
+    sample_weight=sample_weights
+)
 
 print("Model training completed ✅")
 
@@ -118,7 +155,7 @@ print("Model training completed ✅")
 # 10. Evaluate model
 # ==============================
 
-y_pred = log_reg.predict(X_test_tfidf)
+y_pred = log_reg.predict(X_test_final)
 
 # Classification report
 print("\nClassification Report:")
