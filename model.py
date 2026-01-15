@@ -27,8 +27,7 @@ print(df.columns)
 # ==============================
 # 3. Select modeling columns
 # ==============================
-df = df[["clean_feedback_text", "issue_category"]]
-
+df = df[["clean_feedback_text", "issue_category", "urgency"]]
 
 # ==============================
 # 4. Drop invalid rows
@@ -127,7 +126,8 @@ print(
     classification_report(
         y_test,
         y_pred,
-        target_names=label_encoder.classes_
+        target_names=label_encoder.classes_,
+        zero_division=0
     )
 )
 
@@ -141,16 +141,68 @@ print("\nConfusion Matrix:")
 print(cm)
 
 # ==============================
-# 11. Sanity checks
+# 11. Build test results dataframe
+# ==============================
+test_results = pd.DataFrame({
+    "clean_feedback_text": X_test.values,
+    "y_true": y_test.values,
+    "y_pred": y_pred,
+    "urgency": df.loc[X_test.index, "urgency"].values
+})
+
+# Decode labels for readability
+test_results["true_label"] = label_encoder.inverse_transform(
+    test_results["y_true"]
+)
+test_results["pred_label"] = label_encoder.inverse_transform(
+    test_results["y_pred"]
+)
+
+# ==============================
+# Urgency-focused evaluation
+# ==============================
+high_urgency_df = test_results[
+    test_results["urgency"].str.lower() == "high"
+]
+
+print("High-urgency test samples:", high_urgency_df.shape[0])
+
+from sklearn.metrics import recall_score
+
+# Recall for high urgency cases
+high_urgency_recall = recall_score(
+    high_urgency_df["y_true"],
+    high_urgency_df["y_pred"],
+    average="macro",
+    zero_division=0
+)
+
+print("High-urgency Macro Recall:", round(high_urgency_recall, 4))
+
+# False negatives (missed high urgency issues)
+false_negatives = high_urgency_df[
+    high_urgency_df["y_true"] != high_urgency_df["y_pred"]
+]
+
+print("High-urgency false negatives:", false_negatives.shape[0])
+
+print("\nSample high-urgency misclassifications:")
+print(
+    false_negatives[
+        ["clean_feedback_text", "true_label", "pred_label", "urgency"]
+    ].head(10)
+)
+
+# ==============================
+# 12. Sanity checks
 # ==============================
 assert X_train_tfidf.shape[0] == y_train.shape[0]
 assert X_test_tfidf.shape[0] == y_test.shape[0]
 
 print("Sanity checks passed ✅")
 
-
 # ==============================
-# 12. Save artifacts
+# 13. Save artifacts
 # ==============================
 joblib.dump(tfidf, "tfidf_vectorizer.joblib")
 joblib.dump(label_encoder, "label_encoder.joblib")
