@@ -1,4 +1,4 @@
-# Context-Aware Fintech User Feedback Classification Urgency Detection
+# Context-Aware Fintech User Feedback Classification & Urgency Detection
 ## Overview
 
 Fintech companies receive thousands of user feedback entries daily, many of which contain critical operational issues such as failed transactions, account access problems, fraud, or compliance-related complaints. 
